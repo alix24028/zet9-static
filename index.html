@@ -535,6 +535,12 @@ function calculate() {
     btn.disabled = true;
     setStatus('جارٍ الحساب...');
     document.getElementById('result').textContent = 'يرجى الانتظار...';
+    if (typeof Astronomy === 'undefined') {
+        document.getElementById('result').textContent = 'خطأ: مكتبة الحسابات الفلكية لم يتم تحميلها. تأكد من اتصالك بالإنترنت.';
+        setStatus('خطأ تحميل المكتبة');
+        btn.disabled = false;
+        return;
+    }
     setTimeout(() => {
         try {
             const mode = document.getElementById('mode').value;
@@ -545,7 +551,7 @@ function calculate() {
             document.getElementById('result').textContent = result;
             setStatus('اكتمل الحساب');
         } catch(e) {
-            document.getElementById('result').textContent = 'خطأ: ' + e.message;
+            document.getElementById('result').textContent = 'حدث خطأ: ' + (e?.message || e || 'غير معروف');
             setStatus('حدث خطأ');
         }
         btn.disabled = false;
