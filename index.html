@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZET 9 - المدقق الفلكي</title>
+<script src="https://cdn.jsdelivr.net/npm/astronomy-engine/astronomy.browser.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; background: #1a1a2e; color: #e0e0e0; min-height: 100vh; direction: rtl; }
+.container { max-width: 920px; margin: 0 auto; padding: 20px; }
+.header { text-align: center; padding: 20px 0 10px; }
+.header h1 { font-size: 24px; color: #e94560; margin-bottom: 4px; }
+.header p { font-size: 13px; color: #8899aa; }
+.controls { background: #16213e; border-radius: 12px; padding: 18px; margin-bottom: 16px; display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+.control-group { display: flex; flex-direction: column; gap: 4px; }
+.control-group label { font-size: 12px; color: #8899aa; }
+.control-group input, .control-group select { background: #0f3460; color: #e0e0e0; border: 1px solid #1a3a6a; border-radius: 8px; padding: 8px 12px; font-size: 14px; font-family: inherit; }
+.control-group input[type="date"] { direction: ltr; text-align: left; }
+.control-group select { cursor: pointer; }
+.control-group input:focus, .control-group select:focus { outline: none; border-color: #e94560; }
+.btn { background: #e94560; color: white; border: none; border-radius: 8px; padding: 9px 24px; font-size: 15px; font-weight: bold; cursor: pointer; transition: background 0.2s; font-family: inherit; }
+.btn:hover { background: #d6384d; }
+.btn:disabled { background: #555; cursor: not-allowed; }
+.btn-secondary { background: #1a3a6a; }
+.btn-secondary:hover { background: #244d8a; }
+.actions { display: flex; gap: 8px; margin-right: auto; }
+.status-bar { background: #0f3460; border-radius: 8px; padding: 8px 14px; margin-bottom: 12px; font-size: 13px; display: flex; justify-content: space-between; align-items: center; }
+.result { background: #0f3460; border-radius: 12px; padding: 16px; overflow-x: auto; }
+.result pre { font-family: 'Courier New', monospace; font-size: 13px; line-height: 1.6; color: #e0e0e0; white-space: pre-wrap; word-wrap: break-word; direction: ltr; text-align: left; min-height: 200px; }
+.result pre:empty::before { content: 'نتيجة الحساب ستظهر هنا...'; color: #556; }
+.font-controls { display: flex; gap: 6px; align-items: center; }
+.font-controls button { background: #1a3a6a; color: #e0e0e0; border: none; border-radius: 4px; width: 28px; height: 28px; cursor: pointer; font-size: 16px; font-weight: bold; }
+.font-controls button:hover { background: #244d8a; }
+@media (max-width: 600px) {
+    .controls { flex-direction: column; }
+    .control-group input { width: 100%; }
+    .actions { margin-right: 0; width: 100%; }
+    .btn { flex: 1; text-align: center; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>ZET 9 - المدقق الفلكي</h1>
+        <p>الموقع: Hofuf (25°22'N, 49°34'E) المنطقة الزمنية: +3</p>
+    </div>
+    <div class="controls">
+        <div class="control-group">
+            <label>تاريخ البداية</label>
+            <input type="date" id="startDate">
+        </div>
+        <div class="control-group" id="endDateGroup" style="display:none">
+            <label>تاريخ النهاية</label>
+            <input type="date" id="endDate">
+        </div>
+        <div class="control-group" id="timeGroup">
+            <label>الوقت (HH:MM)</label>
+            <input type="time" id="time" value="12:00">
+        </div>
+        <div class="control-group">
+            <label>نوع الحساب</label>
+            <select id="mode">
+                <option value="يومي">يومي</option>
+                <option value="شهري">شهري</option>
+                <option value="سنوي">سنوي</option>
+                <option value="مخصص">مخصص</option>
+            </select>
+        </div>
+        <div class="actions">
+            <button class="btn" id="calcBtn" onclick="calculate()">احسب</button>
+            <button class="btn btn-secondary" onclick="copyResult()">نسخ</button>
+            <button class="btn btn-secondary" onclick="clearResult()">مسح</button>
+        </div>
+    </div>
+    <div class="status-bar">
+        <span id="status">تحميل البيانات...</span>
+        <div class="font-controls">
+            <button onclick="fontUp()">+</button>
+            <button onclick="fontDown()">-</button>
+        </div>
+    </div>
+    <div class="result"><pre id="result"></pre></div>
+</div>
+<script>
+// ---- Constants ----
+const ZODIAC_SIGNS_AR = [
+    ["الحمل","Aries"],["الثور","Taurus"],["الجوزاء","Gemini"],
+    ["السرطان","Cancer"],["الأسد","Leo"],["العذراء","Virgo"],
+    ["الميزان","Libra"],["العقرب","Scorpio"],["القوس","Sagittarius"],
+    ["الجدي","Capricorn"],["الدلو","Aquarius"],["الحوت","Pisces"]
+];
+const MANSIONS_28 = [
+    "الشرطان","البطين","الثريا","الدبران","الهقعة","الهقعة","الذراع","النثرة",
+    "الطرف","الجبهة","الزبرة","الصرفة","العواء","السماك","الغفر","الزبانا",
+    "الإكليل","القلب","الشولة","النعائم","البلدة","سعد الذابح","سعد بلع","سعد السعود",
+    "سعد الأخبية","الفرغ المقدم","الفرغ المؤخر","الرشاء"
+];
+const MANSION_DEG = 360 / 28;
+const TZ = 3;
+
+// ---- State ----
+let zetData = {};
+let zetDataLoaded = false;
+let fontSize = 13;
+
+// ---- Helpers ----
+function norm(d) { return ((d % 360) + 360) % 360; }
+
+function ayanamsa() { return 21.0 + (new Date().getFullYear() - 2000) * 0.013; }
+
+function sidereal(tropical) { return norm(tropical - ayanamsa()); }
+
+function zodiac(lon) {
+    const d = norm(lon);
+    const si = Math.floor(d / 30);
+    return { name: ZODIAC_SIGNS_AR[si][0], index: si, deg: d - si * 30 };
+}
+
+function mansionNum(lon) {
+    const d = norm(lon);
+    const idx = Math.min(Math.floor(d / MANSION_DEG), 27);
+    return idx + 1;
+}
+
+function fmtPos(lon) {
+    const d = Math.floor(lon);
+    const m = Math.abs(Math.floor((lon - d) * 60));
+    const s = Math.abs((lon - d) * 60 - m) * 60;
+    return `${d}°${String(m).padStart(2,'0')}'${s.toFixed(1)}"`;
+}
+
+function fmtDt(d) {
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+
+function fmtDtAr(d) {
+    return fmtDt(d);
+}
+
+function dateStr(d) {
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+// ---- Astronomy ----
+function moonEclipticLon(date) {
+    const eq = Astronomy.GeoMoon(date);
+    const ec = Astronomy.Ecliptic(eq);
+    return ec.elon;
+}
+
+function bodyEclipticLon(body, date) {
+    const gv = Astronomy.GeoVector(body, date);
+    const ec = Astronomy.Ecliptic(gv);
+    return ec.elon;
+}
+
+function checkRetrograde(body, date) {
+    const lon1 = bodyEclipticLon(body, date);
+    const d2 = new Date(date.getTime() + 86400000);
+    const lon2 = bodyEclipticLon(body, d2);
+    let diff = lon2 - lon1;
+    if (diff > 180) diff -= 360;
+    else if (diff < -180) diff += 360;
+    const retro = diff < -0.001;
+    return { retro, lon: lon1 };
+}
+
+function findVOC(date) {
+    const ml = moonEclipticLon(date);
+    const currentSign = Math.floor(ml / 30);
+    const planetNames = ["Sun","Mercury","Venus","Mars","Jupiter","Saturn"];
+    const bodies = [Astronomy.Body.Sun, Astronomy.Body.Mercury, Astronomy.Body.Venus,
+                    Astronomy.Body.Mars, Astronomy.Body.Jupiter, Astronomy.Body.Saturn];
+    const initLons = {};
+    bodies.forEach((b, i) => { initLons[planetNames[i]] = bodyEclipticLon(b, date); });
+    const orb = 2;
+    const aspDeg = [0, 60, 90, 120, 180];
+
+    function hasAspect(mLon) {
+        for (const name of planetNames) {
+            let diff = Math.abs(mLon - initLons[name]);
+            if (diff > 180) diff = 360 - diff;
+            for (const a of aspDeg) {
+                if (Math.abs(diff - a) <= orb) return { ok: true, planet: name, aspect: a };
+            }
+        }
+        return { ok: false };
+    }
+
+    // forward scan
+    let vocEnd = null, nextAspect = null;
+    for (let h = 1; h < 192; h++) {
+        const cur = new Date(date.getTime() + h * 3600000);
+        const ml2 = moonEclipticLon(cur);
+        if (Math.floor(ml2 / 30) !== currentSign) { vocEnd = cur; break; }
+        const asp = hasAspect(ml2);
+        if (asp.ok) { nextAspect = cur; vocEnd = cur; break; }
+    }
+
+    // backward scan
+    let vocStart = null;
+    for (let h = 1; h < 96; h++) {
+        const cur = new Date(date.getTime() - h * 3600000);
+        const ml2 = moonEclipticLon(cur);
+        if (Math.floor(ml2 / 30) !== currentSign) { vocStart = cur; break; }
+        const asp = hasAspect(ml2);
+        if (asp.ok) { vocStart = cur; break; }
+    }
+
+    const curAsp = hasAspect(ml);
+    return {
+        isVoc: !curAsp.ok,
+        aspects: curAsp.ok ? [{planet: curAsp.planet, aspect: curAsp.aspect}] : [],
+        vocStart, vocEnd
+    };
+}
+
+function retrogradePeriods(body, start, end) {
+    const d = new Date(start);
+    let lon1 = bodyEclipticLon(body, d);
+    let wasRetro = false;
+    const starts = [], ends = [];
+    let curStart = null;
+    while (d <= end) {
+        const lon = bodyEclipticLon(body, d);
+        let diff = lon - lon1;
+        if (diff > 180) diff -= 360;
+        else if (diff < -180) diff += 360;
+        const isRetro = diff < -0.001;
+        if (isRetro && !wasRetro) curStart = new Date(d);
+        else if (!isRetro && wasRetro && curStart) {
+            starts.push(curStart);
+            ends.push(new Date(d));
+            curStart = null;
+        }
+        lon1 = lon;
+        wasRetro = isRetro;
+        d.setDate(d.getDate() + 1);
+    }
+    if (wasRetro && curStart) { starts.push(curStart); ends.push(end); }
+    return { starts, ends };
+}
+
+function findRetroEnd(body, dt) {
+    let d = new Date(dt);
+    let lon1 = bodyEclipticLon(body, d);
+    d.setDate(d.getDate() + 1);
+    for (let i = 0; i < 400; i++) {
+        const lon = bodyEclipticLon(body, d);
+        let diff = lon - lon1;
+        if (diff > 180) diff -= 360;
+        else if (diff < -180) diff += 360;
+        if (diff > 0.001) return new Date(d);
+        lon1 = lon;
+        d.setDate(d.getDate() + 1);
+    }
+    return null;
+}
+
+// ---- ZET Data ----
+async function loadZetData() {
+    try {
+        const resp = await fetch('data.json');
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        zetData = await resp.json();
+        zetDataLoaded = true;
+    } catch(e) {
+        console.warn('ZET data not loaded:', e);
+    }
+}
+
+function getMansionFromZet(localDt) {
+    if (!zetDataLoaded) return null;
+    const iso = localDt.toISOString().slice(0,19);
+    const entries = Object.keys(zetData).filter(k => k <= iso).sort();
+    if (entries.length === 0) return null;
+    return zetData[entries[entries.length-1]];
+}
+
+function getAllZetMansions(start, end) {
+    if (!zetDataLoaded) return [];
+    const isoStart = start.toISOString().slice(0,19);
+    const isoEnd = end.toISOString().slice(0,19);
+    return Object.entries(zetData)
+        .filter(([k]) => k >= isoStart && k <= isoEnd)
+        .sort(([a],[b]) => a.localeCompare(b))
+        .map(([k,v]) => [new Date(k), v]);
+}
+
+function getMansionBounds(localDt) {
+    if (!zetDataLoaded) return [null, null];
+    const iso = localDt.toISOString().slice(0,19);
+    const entries = Object.keys(zetData).sort();
+    let entry = null, next = null;
+    for (const k of entries) {
+        if (k <= iso) entry = [new Date(k), zetData[k]];
+        else { next = new Date(k); break; }
+    }
+    if (next === null) { for (const k of entries) { if (k > iso) { next = new Date(k); break; } } }
+    return [entry, next ? next : null];
+}
+
+// ---- Calculations ----
+function calcDay(localDt) {
+    const moonLon = moonEclipticLon(localDt);
+    const moonSid = sidereal(moonLon);
+    const venus = checkRetrograde(Astronomy.Body.Venus, localDt);
+    const merc = checkRetrograde(Astronomy.Body.Mercury, localDt);
+    const venusSid = sidereal(venus.lon);
+    const mercSid = sidereal(merc.lon);
+    const voc = findVOC(localDt);
+    const mz = zodiac(moonLon);
+    const mzs = zodiac(moonSid);
+    const zetM = getMansionFromZet(localDt);
+    const calcM = mansionNum(moonSid);
+    const vz = zodiac(venusSid);
+    const mcz = zodiac(mercSid);
+    const l = [];
+
+    l.push("=".repeat(58));
+    l.push(`  التاريخ: ${fmtDt(localDt).slice(0,10)}   الوقت: ${fmtDt(localDt).slice(11,16)}   ت ع +3`);
+    l.push("=".repeat(58) + "\n");
+    l.push(">>> القمر (Moon)");
+    l.push(`  الطول استوائي: ${fmtPos(moonLon)}`);
+    l.push(`  الطول فلكي:    ${fmtPos(moonSid)}`);
+    l.push(`  البرج استوائي: ${mz.name}  ${mz.deg.toFixed(2)}°`);
+    l.push(`  البرج فلكي:    ${mzs.name}  ${mzs.deg.toFixed(2)}°`);
+    if (zetM) {
+        l.push(`  المنزلة (ZET):  ${zetM} - ${MANSIONS_28[zetM-1]}`);
+        l.push(`  المنزلة (حساب): ${calcM} - ${MANSIONS_28[calcM-1]}`);
+        const [entry, nxt] = getMansionBounds(localDt);
+        if (entry) l.push(`  دخول: ${fmtDtAr(entry[0])}`);
+        if (nxt) l.push(`  خروج: ${fmtDtAr(nxt)}`);
+    } else {
+        l.push(`  المنزلة: ${calcM} - ${MANSIONS_28[calcM-1]}`);
+    }
+    l.push("");
+    l.push(">>> الزهرة (Venus)");
+    l.push(`  الطول فلكي: ${fmtPos(venusSid)}`);
+    l.push(`  البرج فلكي: ${vz.name}  ${vz.deg.toFixed(2)}°`);
+    if (venus.retro) {
+        const vrEnd = findRetroEnd(Astronomy.Body.Venus, localDt);
+        l.push(`  ** الزهرة في تراجع **`);
+        if (vrEnd) l.push(`  العودة للمباشر: ${fmtDt(vrEnd)}`);
+    } else l.push(`  الزهرة مستقيمة`);
+    l.push("");
+    l.push(">>> عطارد (Mercury)");
+    l.push(`  الطول فلكي: ${fmtPos(mercSid)}`);
+    l.push(`  البرج فلكي: ${mcz.name}  ${mcz.deg.toFixed(2)}°`);
+    if (merc.retro) {
+        const mrEnd = findRetroEnd(Astronomy.Body.Mercury, localDt);
+        l.push(`  ** عطارد في تراجع **`);
+        if (mrEnd) l.push(`  العودة للمباشر: ${fmtDt(mrEnd)}`);
+    } else l.push(`  عطارد مستقيم`);
+    l.push("");
+    l.push(">>> القمر خالي المسار (Void of Course)");
+    if (voc.isVoc) {
+        l.push(`  ** القمر خالي المسار **`);
+        if (voc.vocStart) l.push(`  بداية الخلو: ${fmtDt(voc.vocStart)}`);
+        if (voc.vocEnd) l.push(`  نهاية الخلو: ${fmtDt(voc.vocEnd)}`);
+    } else {
+        l.push("  القمر غير خالي المسار");
+        voc.aspects.forEach(a => l.push(`    - ${a.planet}: ${a.aspect}°`));
+    }
+    l.push("\n" + "-".repeat(58));
+    if (venus.retro) l.push("الزهرة في تراجع - لا تبدأ بمشاريع مهمة");
+    else l.push("الزهرة مستقيمة ✓");
+    if (merc.retro) l.push("عطارد في تراجع - لا تبدأ عقود أو تواصل");
+    else l.push("عطارد مستقيم ✓");
+    if (voc.isVoc) l.push("القمر خالي المسار - تجنب البدء بمشاريع جديدة");
+    else l.push("القمر غير خالي المسار ✓");
+    l.push("-".repeat(58));
+    return l.join("\n");
+}
+
+function calcMonth(dt) {
+    const year = dt.getFullYear();
+    const month = dt.getMonth();
+    const start = new Date(year, month, 1);
+    const end = new Date(year, month + 1, 1, 0, 0, -1);
+    const mn = ["يناير","فبراير","مارس","أبريل","مايو","يونيو",
+                "يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"][month];
+    const l = [];
+    l.push("=".repeat(58));
+    l.push(`  التقرير الشهري: ${mn} ${year}`);
+    l.push("=".repeat(58) + "\n");
+    l.push(">>> منازل القمر (Mansions)");
+    const zet = getAllZetMansions(start, end);
+    if (zet.length) {
+        l.push("  (بيانات ZET الأصلية)");
+        for (let i = 0; i < zet.length; i++) {
+            const [edt, num] = zet[i];
+            if (i + 1 < zet.length) {
+                const nextEdt = zet[i+1][0];
+                l.push(`  ${num} ${MANSIONS_28[num-1]}: ${fmtDtAr(edt)} → ${fmtDtAr(nextEdt)}`);
+            } else l.push(`  ${num} ${MANSIONS_28[num-1]}: ${fmtDtAr(edt)} → ...`);
+        }
+    } else l.push("  (لا توجد بيانات ZET لهذا الشهر)");
+    l.push("\n>>> الكواكب الراجعة (Retrogrades)");
+    [
+        [Astronomy.Body.Venus, "الزهرة"],
+        [Astronomy.Body.Mercury, "عطارد"]
+    ].forEach(([body, arName]) => {
+        const r = retrogradePeriods(body, start, end);
+        if (r.starts.length) {
+            l.push(`  ${arName} في تراجع:`);
+            r.starts.forEach((s, i) => {
+                l.push(`    بداية: ${fmtDt(s)}`);
+                l.push(`    عودة:  ${fmtDt(r.ends[i])}`);
+                const days = Math.round((r.ends[i] - s) / 86400000);
+                l.push(`    مدة:   ${days} يوم`);
+            });
+        } else l.push(`  ${arName} مستقيم طوال الشهر`);
+    });
+    l.push("\n" + "-".repeat(58));
+    l.push("انتهى التقرير الشهري");
+    l.push("-".repeat(58));
+    return l.join("\n");
+}
+
+function calcYear(dt) {
+    const year = dt.getFullYear();
+    const start = new Date(year, 0, 1);
+    const end = new Date(year, 11, 31, 23, 59);
+    const l = [];
+    l.push("=".repeat(58));
+    l.push(`  التقرير السنوي: ${year}`);
+    l.push("=".repeat(58) + "\n");
+    l.push(">>> منازل القمر (Mansions)");
+    const zet = getAllZetMansions(start, end);
+    if (zet.length) {
+        const rl = [];
+        for (let i = 0; i < zet.length; i++) {
+            const [edt, num] = zet[i];
+            if (i + 1 < zet.length) {
+                rl.push(`  ${num} ${MANSIONS_28[num-1]}: ${fmtDtAr(edt)} → ${fmtDtAr(zet[i+1][0])}`);
+            } else rl.push(`  ${num} ${MANSIONS_28[num-1]}: ${fmtDtAr(edt)} → ...`);
+        }
+        l.push(`  (بيانات ZET - ${rl.length} حدث)`);
+        rl.slice(0, 40).forEach(r => l.push(r));
+        if (rl.length > 40) l.push(`  ... و${rl.length-40} حدث آخر`);
+    } else l.push("  (بيانات ZET غير متوفرة لهذه السنة)");
+    l.push("\n>>> الكواكب الراجعة (Retrogrades)");
+    [
+        [Astronomy.Body.Venus, "الزهرة"],
+        [Astronomy.Body.Mercury, "عطارد"]
+    ].forEach(([body, arName]) => {
+        const r = retrogradePeriods(body, start, end);
+        const total = r.starts.reduce((s, st, i) => s + Math.round((r.ends[i] - st) / 86400000), 0);
+        if (r.starts.length) {
+            l.push(`  ${arName} - إجمالي التراجع ${total} يوم`);
+            r.starts.forEach((s, i) => {
+                l.push(`    ┌ بداية التراجع: ${fmtDt(s)}`);
+                l.push(`    └ العودة للمباشر: ${fmtDt(r.ends[i])}`);
+                l.push(`     المدة: ${Math.round((r.ends[i] - s) / 86400000)} يوم`);
+            });
+        } else l.push(`  ${arName} مستقيم طوال السنة`);
+    });
+    l.push("\n" + "-".repeat(58));
+    l.push("انتهى التقرير السنوي");
+    l.push("-".repeat(58));
+    return l.join("\n");
+}
+
+function calcCustom(startD, endD) {
+    const l = [];
+    l.push("=".repeat(58));
+    l.push(`  تقرير مخصص: ${dateStr(startD)} → ${dateStr(endD)}`);
+    l.push("=".repeat(58) + "\n");
+    l.push(">>> منازل القمر (Mansions)");
+    const zet = getAllZetMansions(startD, endD);
+    if (zet.length) {
+        const rl = [];
+        for (let i = 0; i < zet.length; i++) {
+            const [edt, num] = zet[i];
+            if (i + 1 < zet.length) {
+                rl.push(`  ${num} ${MANSIONS_28[num-1]}: ${fmtDtAr(edt)} → ${fmtDtAr(zet[i+1][0])}`);
+            } else rl.push(`  ${num} ${MANSIONS_28[num-1]}: ${fmtDtAr(edt)} → ...`);
+        }
+        l.push(`  (بيانات ZET - ${rl.length} حدث)`);
+        rl.slice(0, 60).forEach(r => l.push(r));
+        if (rl.length > 60) l.push(`  ... و${rl.length-60} حدث آخر`);
+    } else l.push("  (بيانات ZET غير متوفرة لهذه الفترة)");
+    l.push("\n>>> الكواكب الراجعة (Retrogrades)");
+    [
+        [Astronomy.Body.Venus, "الزهرة"],
+        [Astronomy.Body.Mercury, "عطارد"]
+    ].forEach(([body, arName]) => {
+        const uStart = new Date(startD.getTime() - TZ * 3600000);
+        const uEnd = new Date(endD.getTime() + 86400000 - TZ * 3600000);
+        const r = retrogradePeriods(body, uStart, uEnd);
+        const total = r.starts.reduce((s, st, i) => s + Math.round((r.ends[i] - st) / 86400000), 0);
+        if (r.starts.length) {
+            l.push(`  ${arName} - إجمالي التراجع ${total} يوم`);
+            r.starts.forEach((s, i) => {
+                l.push(`    ┌ بداية التراجع: ${fmtDt(new Date(s.getTime() + TZ * 3600000))}`);
+                l.push(`    └ العودة للمباشر: ${fmtDt(new Date(r.ends[i].getTime() + TZ * 3600000))}`);
+                l.push(`     المدة: ${Math.round((r.ends[i] - s) / 86400000)} يوم`);
+            });
+        } else l.push(`  ${arName} مستقيم طوال الفترة`);
+    });
+    l.push("\n" + "-".repeat(58));
+    l.push("انتهى التقرير المخصص");
+    l.push("-".repeat(58));
+    return l.join("\n");
+}
+
+function calc(dateStr, timeStr, mode, endDateStr) {
+    let d;
+    try { d = new Date(dateStr + (mode === 'مخصص' ? 'T12:00' : 'T' + timeStr)); }
+    catch(e) { return "خطأ: صيغة التاريخ غير صحيحة"; }
+    if (isNaN(d.getTime())) return "خطأ: صيغة التاريخ غير صحيحة\nاستخدم YYYY-MM-DD HH:MM";
+
+    switch (mode) {
+        case "يومي": return calcDay(d);
+        case "شهري": return calcMonth(d);
+        case "سنوي": return calcYear(d);
+        case "مخصص":
+            if (!endDateStr) return "خطأ: الرجاء إدخال تاريخ النهاية";
+            const endD = new Date(endDateStr + 'T12:00');
+            if (isNaN(endD.getTime())) return "خطأ: صيغة تاريخ النهاية غير صحيحة";
+            if (endD < d) return "خطأ: تاريخ النهاية يجب أن يكون بعد تاريخ البداية";
+            return calcCustom(d, endD);
+    }
+    return "خطأ: وضع غير معروف";
+}
+
+// ---- UI ----
+function setStatus(msg) { document.getElementById('status').textContent = msg; }
+
+function calculate() {
+    const btn = document.getElementById('calcBtn');
+    btn.disabled = true;
+    setStatus('جارٍ الحساب...');
+    document.getElementById('result').textContent = 'يرجى الانتظار...';
+    setTimeout(() => {
+        try {
+            const mode = document.getElementById('mode').value;
+            const date = document.getElementById('startDate').value;
+            const time = mode === 'مخصص' ? '12:00' : document.getElementById('time').value;
+            const endDate = mode === 'مخصص' ? document.getElementById('endDate').value : '';
+            const result = calc(date, time, mode, endDate);
+            document.getElementById('result').textContent = result;
+            setStatus('اكتمل الحساب');
+        } catch(e) {
+            document.getElementById('result').textContent = 'خطأ: ' + e.message;
+            setStatus('حدث خطأ');
+        }
+        btn.disabled = false;
+    }, 50);
+}
+
+function copyResult() {
+    const txt = document.getElementById('result').textContent;
+    if (!txt) return;
+    navigator.clipboard.writeText(txt).then(() => setStatus('تم النسخ إلى الحافظة'))
+        .catch(() => setStatus('فشل النسخ'));
+}
+
+function clearResult() {
+    document.getElementById('result').textContent = '';
+    setStatus('جاهز');
+}
+
+function fontUp() { fontSize = Math.min(fontSize + 2, 32); applyFont(); setStatus('حجم الخط: ' + fontSize); }
+function fontDown() { fontSize = Math.max(fontSize - 2, 6); applyFont(); setStatus('حجم الخط: ' + fontSize); }
+function applyFont() { document.getElementById('result').style.fontSize = fontSize + 'px'; }
+
+// ---- Init ----
+document.getElementById('startDate').value = dateStr(new Date());
+document.getElementById('endDate').value = dateStr(new Date());
+document.getElementById('time').value = `${String(new Date().getHours()).padStart(2,'0')}:${String(new Date().getMinutes()).padStart(2,'0')}`;
+
+document.getElementById('mode').addEventListener('change', function() {
+    const eg = document.getElementById('endDateGroup');
+    const tg = document.getElementById('timeGroup');
+    if (this.value === 'مخصص') { eg.style.display = 'flex'; tg.style.display = 'none'; }
+    else if (this.value === 'يومي') { eg.style.display = 'none'; tg.style.display = 'flex'; }
+    else { eg.style.display = 'none'; tg.style.display = 'none'; }
+});
+
+// Load ZET data async
+loadZetData().then(() => setStatus('جاهز')).catch(() => setStatus('جاهز (بدون بيانات ZET)'));
+</script>
+</body>
+</html>
