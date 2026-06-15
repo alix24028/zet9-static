@@ -145,14 +145,17 @@ function dateStr(d) {
 
 // ---- Astronomy ----
 function moonEclipticLon(date) {
-    const eq = Astronomy.GeoMoon(date);
+    const time = Astronomy.MakeTime(date);
+    const eq = Astronomy.GeoMoon(time);
     const ec = Astronomy.Ecliptic(eq);
     return ec.elon;
 }
 
 function bodyEclipticLon(body, date) {
-    const gv = Astronomy.GeoVector(body, date);
-    const ec = Astronomy.Ecliptic(gv);
+    const time = Astronomy.MakeTime(date);
+    const gv = Astronomy.GeoVector(body, time, true);
+    const eq = Astronomy.EquatorialFromVector(gv);
+    const ec = Astronomy.Ecliptic(eq);
     return ec.elon;
 }
 
