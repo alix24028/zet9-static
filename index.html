@@ -154,7 +154,7 @@ function moonEclipticLon(date) {
 function bodyEclipticLon(body, date) {
     const time = Astronomy.MakeTime(date);
     const gv = Astronomy.GeoVector(body, time, true);
-    const eq = Astronomy.EquatorFromVector(gv, time);
+    // manual equatorial->ecliptic conversion
     const ec = Astronomy.Ecliptic(eq);
     return ec.elon;
 }
