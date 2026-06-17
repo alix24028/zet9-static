@@ -316,7 +316,7 @@ function calcDay(localDt) {
     const mz = zodiac(moonLon);
     const mzs = zodiac(moonSid);
     const zetM = getMansionFromZet(localDt);
-    const calcM = mansionNum(moonSid);
+    const calcM = zetM || mansionNum(moonSid);
     const vz = zodiac(venusSid);
     const mcz = zodiac(mercSid);
     const l = [];
