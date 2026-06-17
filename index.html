@@ -92,10 +92,10 @@ const ZODIAC_SIGNS_AR = [
     ["الجدي","Capricorn"],["الدلو","Aquarius"],["الحوت","Pisces"]
 ];
 const MANSIONS_28 = [
-    "الشرطان","البطين","الثريا","الدبران","الهقعة","الهقعة","الذراع","النثرة",
+    "الشرطان","البطين","الثريا","الدبران","الهقعة","الهنعة","الذراع","النثرة",
     "الطرف","الجبهة","الزبرة","الصرفة","العواء","السماك","الغفر","الزبانا",
-    "الإكليل","القلب","الشولة","النعائم","البلدة","سعد الذابح","سعد بلع","سعد السعود",
-    "سعد الأخبية","الفرغ المقدم","الفرغ المؤخر","الرشاء"
+    "الإكليل","القلب","الشولة","النعائم","البلدة","الذابح","البلع","السعود",
+    "الأخبية","المقدم","المؤخر","الرشاء"
 ];
 const MANSION_DEG = 360 / 28;
 const TZ = 3;
@@ -175,17 +175,16 @@ function findVOC(date) {
     const planetNames = ["Sun","Mercury","Venus","Mars","Jupiter","Saturn"];
     const bodies = [Astronomy.Body.Sun, Astronomy.Body.Mercury, Astronomy.Body.Venus,
                     Astronomy.Body.Mars, Astronomy.Body.Jupiter, Astronomy.Body.Saturn];
-    const initLons = {};
-    bodies.forEach((b, i) => { initLons[planetNames[i]] = bodyEclipticLon(b, date); });
     const orb = 2;
     const aspDeg = [0, 60, 90, 120, 180];
 
-    function hasAspect(mLon) {
-        for (const name of planetNames) {
-            let diff = Math.abs(mLon - initLons[name]);
+    function hasAspect(mLon, dt) {
+        for (let i = 0; i < planetNames.length; i++) {
+            const pLon = bodyEclipticLon(bodies[i], dt);
+            let diff = Math.abs(mLon - pLon);
             if (diff > 180) diff = 360 - diff;
             for (const a of aspDeg) {
-                if (Math.abs(diff - a) <= orb) return { ok: true, planet: name, aspect: a };
+                if (Math.abs(diff - a) <= orb) return { ok: true, planet: planetNames[i], aspect: a };
             }
         }
         return { ok: false };
@@ -197,7 +196,7 @@ function findVOC(date) {
         const cur = new Date(date.getTime() + h * 3600000);
         const ml2 = moonEclipticLon(cur);
         if (Math.floor(ml2 / 30) !== currentSign) { vocEnd = cur; break; }
-        const asp = hasAspect(ml2);
+        const asp = hasAspect(ml2, cur);
         if (asp.ok) { nextAspect = cur; vocEnd = cur; break; }
     }
 
@@ -207,11 +206,11 @@ function findVOC(date) {
         const cur = new Date(date.getTime() - h * 3600000);
         const ml2 = moonEclipticLon(cur);
         if (Math.floor(ml2 / 30) !== currentSign) { vocStart = cur; break; }
-        const asp = hasAspect(ml2);
+        const asp = hasAspect(ml2, cur);
         if (asp.ok) { vocStart = cur; break; }
     }
 
-    const curAsp = hasAspect(ml);
+    const curAsp = hasAspect(ml, date);
     return {
         isVoc: !curAsp.ok,
         aspects: curAsp.ok ? [{planet: curAsp.planet, aspect: curAsp.aspect}] : [],
