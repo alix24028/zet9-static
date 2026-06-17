@@ -154,10 +154,8 @@ function moonEclipticLon(date) {
 function bodyEclipticLon(body, date) {
     const time = Astronomy.MakeTime(date);
     const gv = Astronomy.GeoVector(body, time, true);
-    const oble = 23.439291111 * Math.PI / 180;
-    const ye = gv.y * Math.cos(oble) - gv.z * Math.sin(oble);
-    const lon = Math.atan2(ye, gv.x) * 180 / Math.PI;
-    return lon >= 0 ? lon : lon + 360;
+    const ec = Astronomy.Ecliptic(gv);
+    return ec.elon >= 0 ? ec.elon : ec.elon + 360;
 }
 
 function checkRetrograde(body, date) {
